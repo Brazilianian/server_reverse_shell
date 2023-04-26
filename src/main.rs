@@ -1,7 +1,9 @@
+use std::fmt::Error;
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::io;
 use std::io::stdin;
+use std::num::ParseIntError;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 mod tcp_connector;
@@ -28,33 +30,50 @@ fn open_main_menu(streams: &Arc<Mutex<Vec<TcpStream>>>) {
 2: Connect To\t
 ---------------------");
         let mut menu_option = String::new();
-        io::stdin().read_line(&mut menu_option).unwrap();
+        stdin().read_line(&mut menu_option).unwrap();
         match menu_option.trim() {
             "1" => {
                 tcp_streams_worker::print_connections(&streams);
             }
             "2" => {
-                if !tcp_streams_worker::are_there_streams(&streams) {
-                    println!("There is no available connections");
-                    continue;
-                }
+                // if !tcp_streams_worker::are_there_streams(&streams) {
+                //     println!("There is no available connections");
+                //     continue;
+                // }
 
                 println!("Enter order number to use connection");
                 tcp_streams_worker::print_connections(&streams);
                 let mut number: String = String::new();
-                io::stdin().read_line(&mut number).unwrap();
+                stdin().read_line(&mut number).unwrap();
 
-                let stream: &TcpStream = tcp_streams_worker::get_stream_by_index(
+                let mut index: usize = 0;
+                let index_result: Result<usize, ParseIntError> = number.trim().parse();
+                match index_result {
+                    Ok(num) => {
+                        index = num - 1;
+                    }
+                    Err(_) => {
+                        println!("Parse error");
+                        continue;
+                    }
+                }
+
+                let stream: TcpStream = tcp_streams_worker::get_stream_by_index(
                     &streams,
-                    number.trim().parse().unwrap()
+                    index,
                 );
 
                 println!("Using the stream {}", stream.peer_addr().unwrap());
-                println!("Enter the command");
+                println!("Enter the command (write 'break' to exit from connection)");
 
                 while true {
                     let mut command: String = String::new();
                     stdin().read_line(&mut command).unwrap();
+
+                    if command.trim() == "break" {
+                        break;
+                    }
+
                     match tcp_connector::send_command_to_client(&stream, &command) {
                         Ok(result) => {
                             println!("{}", result);
