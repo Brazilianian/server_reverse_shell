@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::{Write};
 use std::net::TcpStream;
 use std::sync::{Arc, Mutex};
 
@@ -42,12 +42,12 @@ fn check_are_connected(streams: &Arc<Mutex<Vec<TcpStream>>>) {
 }
 
 pub fn are_there_streams(streams: &Arc<Mutex<Vec<TcpStream>>>) -> bool {
-    let mut streams = streams.lock().unwrap();
-    (!streams.is_empty() && streams.len() != 0)
+    let streams = streams.lock().unwrap();
+    !streams.is_empty() && streams.len() != 0
 }
 
 pub fn get_stream_by_index(streams: &Arc<Mutex<Vec<TcpStream>>>, index: usize) -> TcpStream {
-    let mut streams = streams.lock().unwrap();
+    let streams = streams.lock().unwrap();
     let stream = streams[index].try_clone().unwrap();
     stream
 }

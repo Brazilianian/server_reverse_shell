@@ -1,15 +1,17 @@
-use std::fmt::Error;
 use std::net::{TcpListener, TcpStream};
-use std::thread;
-use std::io;
+use std::{fs, thread};
 use std::io::stdin;
 use std::num::ParseIntError;
-use std::sync::{Arc, Mutex, MutexGuard};
-
+use std::sync::{Arc, Mutex};
+use log::Level;
+use crate::logger::{init_log_file, write_log};
 mod tcp_connector;
 mod tcp_streams_worker;
+mod logger;
 
 fn main() {
+    init_log_file();
+
     let port: String = String::from("8888");
     let ip_address: String = String::from("0.0.0.0");
     let listener = tcp_connector::list_for_clients(&ip_address, &port);
@@ -36,10 +38,10 @@ fn open_main_menu(streams: &Arc<Mutex<Vec<TcpStream>>>) {
                 tcp_streams_worker::print_connections(&streams);
             }
             "2" => {
-                // if !tcp_streams_worker::are_there_streams(&streams) {
-                //     println!("There is no available connections");
-                //     continue;
-                // }
+                if !tcp_streams_worker::are_there_streams(&streams) {
+                    println!("There is no available connections");
+                    continue;
+                }
 
                 println!("Enter order number to use connection");
                 tcp_streams_worker::print_connections(&streams);
@@ -64,14 +66,33 @@ fn open_main_menu(streams: &Arc<Mutex<Vec<TcpStream>>>) {
                 );
 
                 println!("Using the stream {}", stream.peer_addr().unwrap());
-                println!("Enter the command (write 'break' to exit from connection)");
 
                 while true {
+                    println!("Enter the command (write 'break' to exit from connection, write 'read' to read execute script from file)");
                     let mut command: String = String::new();
                     stdin().read_line(&mut command).unwrap();
 
-                    if command.trim() == "break" {
+                    command = command.trim().parse().unwrap();
+
+                    if command == "break" {
                         break;
+                    }
+
+                    if command == "read" {
+                        println!("Enter file path to read");
+                        let mut file_path: String = String::new();
+                        stdin().read_line(&mut file_path).unwrap();
+                        file_path = file_path.trim().parse().unwrap();
+
+                       match fs::read_to_string(&file_path) {
+                           Ok(contents) => {
+                               command = contents;
+                           }
+                           Err(e) => {
+                               println!("Failed to read data from file {} - {}", file_path, e.to_string());
+                               continue;
+                           }
+                       }
                     }
 
                     match tcp_connector::send_command_to_client(&stream, &command) {
@@ -84,6 +105,9 @@ fn open_main_menu(streams: &Arc<Mutex<Vec<TcpStream>>>) {
                     }
                 }
             }
+            "break" => {
+                break;
+            }
             _ => {}
         }
     }
@@ -94,6 +118,7 @@ fn listen_for_connections_and_push_to_vector(listener: &TcpListener, streams: &A
         match stream {
             Ok(stream) => {
                 println!("New connection from {}", stream.peer_addr().unwrap());
+                write_log(format!("New connection from {}", stream.peer_addr().unwrap()), Level::Info);
                 let mut streams = streams.lock().unwrap();
                 streams.push(stream);
             }
